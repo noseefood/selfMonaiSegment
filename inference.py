@@ -25,8 +25,9 @@ from monai.networks.nets import UNet
 from pathlib import Path
 base = Path(os.environ['raw_data_base']) if 'raw_data_base' in os.environ.keys() else Path('./data')
 assert base is not None, "Please assign the raw_data_base(which store the training data) in system path "
-dir_test = base / 'test/test_1'
+dir_test = base / 'test/test_2'
 dir_checkpoint = 'checkpoints/'
+Unet_Type = "AttentionUNet" # "UNet" or "AttentionUNet"
 
 def inference_monai():
     monai.config.print_config()
@@ -45,16 +46,31 @@ def inference_monai():
     post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
     data = train_imtrans(images)
 
-    model = UNet(
-        spatial_dims=2,
-        in_channels=1,
-        out_channels=1,
-        channels=(16, 32, 64, 128, 256),
-        strides=(2, 2, 2, 2),
-        num_res_units=2,
-    ).to(device)
+    if Unet_Type == "UNet": 
 
-    model.load_state_dict(torch.load("best_metric_model_Unet.pth"))
+        model = UNet(
+            spatial_dims=2,
+            in_channels=1,
+            out_channels=1,
+            channels=(16, 32, 64, 128, 256),
+            strides=(2, 2, 2, 2),
+            num_res_units=2,
+        ).to(device)
+        model.load_state_dict(torch.load("best_metric_model_Unet.pth"))
+
+    elif Unet_Type == "AttentionUNet":
+
+        model = monai.networks.nets.AttentionUnet(
+            spatial_dims=2,
+            in_channels=1,
+            out_channels=1,
+            channels=(16, 32, 64, 128, 256),
+            strides=(2, 2, 2, 2),  
+            kernel_size=3,
+        ).to(device)   
+        model.load_state_dict(torch.load("best_metric_model_AttentionUnet.pth"))
+        
+
     model.eval()
 
     tf = Compose( # 恢复到原来的大小
@@ -74,7 +90,7 @@ def inference_monai():
             result = post_trans(output) # torch.Size([1, 1, 512, 512])
 
             probs = result.squeeze(0) # squeeze压缩维度 torch.Size([1, 512, 512])
-            probs = tf(probs.cpu()) 
+            probs = tf(probs.cpu()) # 重新拉伸到原来的大小
             full_mask = probs.squeeze().cpu().numpy() # return in cpu  # 
             # print(full_mask.shape) # (657, 671)
             
