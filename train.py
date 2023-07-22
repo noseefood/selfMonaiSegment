@@ -77,7 +77,8 @@ def main(tempdir):
             ScaleIntensity(),  
             RandGaussianNoise(prob=0.3),
             RandGaussianSmooth(prob=0.3),
-            RandAxisFlip(prob=0.7), # 两个方向都有可能翻转，会在ArrayDataset里面自动同步
+            # RandAxisFlip(prob=0.7), # 两个方向都有可能翻转，会在ArrayDataset里面自动同步
+            RandFlip(prob=0.7), # 两个方向都有可能翻转，会在ArrayDataset里面自动同步
         ]
     )
     train_segtrans = Compose(
@@ -86,7 +87,8 @@ def main(tempdir):
             LoadImage(image_only=True, ensure_channel_first=True),
             Resize((512, 512)), 
             ScaleIntensity(),
-            RandAxisFlip(prob=0.7),
+            # RandAxisFlip(prob=0.7),
+            RandFlip(prob=0.7),
         ]
     )
 
@@ -106,7 +108,8 @@ def main(tempdir):
             ScaleIntensity(),
             RandGaussianNoise(prob=0.3),
             RandGaussianSmooth(prob=0.3),
-            RandAxisFlip(prob=0.7), # 两个方向都有可能翻转，会在ArrayDataset里面自动同步
+            # RandAxisFlip(prob=0.7), # 两个方向都有可能翻转，会在ArrayDataset里面自动同步
+            RandFlip(prob=0.7), # 两个方向都有可能翻转，会在ArrayDataset里面自动同步
         ]
     )
     val_segtrans = Compose(
@@ -115,7 +118,8 @@ def main(tempdir):
             LoadImage(image_only=True, ensure_channel_first=True),
             Resize((512, 512)), 
             ScaleIntensity(),
-            RandAxisFlip(prob=0.7),
+            # RandAxisFlip(prob=0.7),
+            RandFlip(prob=0.7),
         ]
     )   
 
