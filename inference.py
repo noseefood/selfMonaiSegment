@@ -25,7 +25,7 @@ from monai.networks.nets import UNet
 from pathlib import Path
 base = Path(os.environ['raw_data_base']) if 'raw_data_base' in os.environ.keys() else Path('./data')
 assert base is not None, "Please assign the raw_data_base(which store the training data) in system path "
-dir_test = base / 'test/test_2'
+dir_test = base / 'test/test_1'
 dir_checkpoint = 'checkpoints/'
 
 def inference_monai():
@@ -54,7 +54,7 @@ def inference_monai():
         num_res_units=2,
     ).to(device)
 
-    model.load_state_dict(torch.load("best_metric_model_segmentation2d_array.pth"))
+    model.load_state_dict(torch.load("best_metric_model_Unet.pth"))
     model.eval()
 
     tf = Compose( # 恢复到原来的大小
