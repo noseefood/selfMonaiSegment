@@ -19,13 +19,13 @@ from monai.transforms import (
     ScaleIntensity,
     Resize,
 )
-from monai.networks.nets import UNet
+from monai.networks.nets import UNet, AttentionUnet
 
 
 from pathlib import Path
 base = Path(os.environ['raw_data_base']) if 'raw_data_base' in os.environ.keys() else Path('./data')
 assert base is not None, "Please assign the raw_data_base(which store the training data) in system path "
-dir_test = base / 'test/test_2'
+dir_test = base / 'test/test_3FromViseoSim'
 dir_checkpoint = 'checkpoints/'
 Unet_Type = "AttentionUNet" # "UNet" or "AttentionUNet"
 
@@ -60,7 +60,7 @@ def inference_monai():
 
     elif Unet_Type == "AttentionUNet":
 
-        model = monai.networks.nets.AttentionUnet(
+        model = AttentionUnet(
             spatial_dims=2,
             in_channels=1,
             out_channels=1,
@@ -74,7 +74,7 @@ def inference_monai():
     model.eval()
 
     tf = Compose( # 恢复到原来的大小
-    [   
+    [  
         # Transpose((1, 2, 0)),
         Resize((657, 671)),
     ]
@@ -82,6 +82,8 @@ def inference_monai():
     
     with torch.no_grad():
         for img in data:  # 其实相当于dataloader，因为也使用了Compose的组织方式
+
+            print(img.shape) #metatensor
 
             img = img.to(device) # torch.Size([1, 512, 512])   HWC to CHW：img_trans = img_nd.transpose((2, 0, 1))
             img = img.unsqueeze(0) # torch.Size([1, 1, 512, 512]) unsqueeze扩增维度
