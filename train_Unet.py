@@ -179,7 +179,8 @@ def main(tempdir):
             step += 1
             inputs, labels = batch_data[0].to(device), batch_data[1].to(device) # torch.Size([8, 1, 512, 512])
 
-            inputs, labels = inputs.transpose(-1,-2), labels.transpose(-1,-2)  # 在推理的时候也要注意这个
+            # 因为dataloader读入的时候会更换H和W的位置，所以这里需要转换回来，这样在不对输出进行更换操作的情况下，输出的mask才能直接和原图对应
+            inputs, labels = inputs.transpose(-1,-2), labels.transpose(-1,-2)  
 
             # print("inputs's shape", inputs.shape) # torch.Size([8, 1, 512, 512])
             optimizer.zero_grad()
@@ -205,7 +206,8 @@ def main(tempdir):
                 for val_data in val_loader: # 
 
                     val_images, val_labels = val_data[0].to(device), val_data[1].to(device)
-
+                    
+                    # 因为dataloader读入的时候会更换H和W的位置
                     val_images, val_labels = val_images.transpose(-1,-2), val_labels.transpose(-1,-2) 
 
                     # print("val_images's shape", val_images.shape) # val_images's shape torch.Size([1, 1, 512, 512]) ！！！DataLoader注意会增加一个维度详见推理
@@ -250,6 +252,7 @@ def main(tempdir):
 
             test_images, test_labels = test_data[0].to(device), test_data[1].to(device)
 
+            # 因为dataloader读入的时候会更换H和W的位置
             test_images, test_labels = test_images.transpose(-1,-2), test_labels.transpose(-1,-2) 
 
             # print("val_images's shape", test_images.shape) # val_images's shape torch.Size([1, 1, 512, 512]) ！！！DataLoader注意会增加一个维度详见推理

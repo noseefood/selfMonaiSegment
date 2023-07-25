@@ -87,7 +87,10 @@ def inference_monai():
 
             img = img.to(device) # torch.Size([1, 512, 512])   HWC to CHW：img_trans = img_nd.transpose((2, 0, 1))
             img = img.unsqueeze(0) # torch.Size([1, 1, 512, 512]) unsqueeze扩增维度
+
+            # 因为dataloader读入的时候会更换H和W的位置，所以这里需要转换回来，这样在不对输出进行更换操作的情况下，输出的mask才能直接和原图对应
             img = img.transpose(-1,-2) # 没问题了！
+            
             output = model(img)
             result = post_trans(output) # torch.Size([1, 1, 512, 512])
 

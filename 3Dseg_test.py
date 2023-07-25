@@ -41,12 +41,11 @@ train_imtrans = Compose( # 输入模型的图片的预处理
     ]
 )
 post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
-tf = Compose( # 恢复到原来的大小
-[   
-    # Transpose((1, 2, 0)),
-    Resize((657, 671)),
-]
-)
+# tf = Compose( # 恢复到原来的大小
+# [   
+#     Resize((657, 671)),
+# ]
+# )
 
 class VoxelSeg():
 
@@ -55,12 +54,13 @@ class VoxelSeg():
         self.itkimage_unSeg = itkimage_unSeg
         self.model = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.voxelImg_unSeg = self.itk2voxel(itkimage_unSeg)
 
 
-    # def itk2voxel(self, itkImg):
-    #     # itk image to numpy array
-    #     temp = sitk.GetArrayFromImage(itkImg)   # (154, 418, 449) z,y,x 转换为numpy (z,y,x): z:切片数量,y:切片宽,x:切片高
-    #     return temp
+    def itk2voxel(self, itkImg):
+        # itk image to numpy array
+        temp = sitk.GetArrayFromImage(itkImg)   # (154, 418, 449) z,y,x 转换为numpy (z,y,x): z:切片数量,y:切片宽,x:切片高
+        return temp
     
     def model_load(self, Unet_Type):
         monai.config.print_config()
@@ -93,8 +93,6 @@ class VoxelSeg():
 
         
 
-    
-    
     def process_and_replace_slices(self):
         # 获取图像的尺寸
         image = self.itkimage_unSeg
@@ -114,13 +112,21 @@ class VoxelSeg():
 
                 # 在这里对切片进行修改，您可以添加您的图像处理代码
                 img = sitk.GetArrayFromImage(slice_image)
+                size_1, size_2 = img.shape
+                tf = Compose( # 恢复到原来的大小
+                [   
+                    Resize((size_1, size_2)),
+                    # ScaleIntensity(),
+
+                ]
+                )
 
                 cv2.imshow("img", img)
                 cv2.waitKey(0)    
                 # print(img.shape) # (418, 429)
 
                 img = train_imtrans(img) # compose会自动返回tensor torch.Size([1, 512, 512])
-                print(img.shape) # torch.Size([1, 512, 512])
+                # print(img.shape) # torch.Size([1, 512, 512])
 
                 img = img.to(self.device) # torch.Size([1, 512, 512])   HWC to CHW：img_trans = img_nd.transpose((2, 0, 1))
                 img = img.unsqueeze(0) # torch.Size([1, 1, 512, 512]) unsqueeze扩增维度
@@ -134,33 +140,35 @@ class VoxelSeg():
 
 
                 output = self.model(img)
-                result = post_trans(output) # torch.Size([1, 1, 512, 512])
+                result = post_trans(output) # torch.Size([1, 1, 512, 512]) # 二值化
 
-                probs = result.squeeze(0) # squeeze压缩维度 torch.Size([1, 512, 512])
-                probs = tf(probs.cpu()) # 重新拉伸到原来的大小
+                probs = result.squeeze(0) # squeeze压缩维度 torch.Size([1, 512, 512]) 
+                probs = tf(probs.cpu()) # 重新拉伸到原来的大小 注意一旦进行了resize，之前的二值化结果就会变成float32！！，在tf中已经进行了二值化，所以这里不需要了
                 full_mask = probs.squeeze().cpu().numpy() # return in cpu  # 
+
+                full_mask = full_mask > 0
+                full_mask = np.asarray((full_mask * 255).astype(np.uint8)) # 将mask(0,1)转换为0-255的灰度图用于可视化
+
+                # full_mask = np.where(full_mask > 0.5, 1, 0) # 二值化
+                # print(full_mask) # (418, 429)
 
                 cv2.imshow("full_mask", full_mask)
                 cv2.waitKey(0)
+                # print(full_mask.shape) # (418, 429)
                 
                 result_itk = sitk.GetImageFromArray(full_mask)
                 # print(result_itk.GetSize()) # (671, 657)
+                self.voxelImg_unSeg[z,:,:] = full_mask 
 
-                # 将修改后的切片替换回原始图像
-                # paste_filter = sitk.PasteImageFilter()
-                # paste_filter.SetDestinationIndex([0, 0, z])
-                # self.itkimage_unSeg = paste_filter.Execute(self.itkimage_unSeg, sitk.Cast(result_itk,sitk.sitkUInt8))  
-                sitk.Paste(self.itkimage_unSeg,  sitk.Cast(result_itk,sitk.sitkUInt8), result_itk.GetSize(), destinationIndex=[0, 0, z]) # 这个也可以
 
-        # 将修改后的三维数据保存为raw文件
-        writer = sitk.ImageFileWriter()
-        writer.SetFileName(output_file_path)
-        writer.Execute(self.itkimage_unSeg)
-
-        # sitk.WriteImage(image, output_file_path)
+        # 保存结果
+        replaced_image = sitk.GetImageFromArray(self.voxelImg_unSeg)
+        replaced_image.CopyInformation(self.itkimage_unSeg)
+        sitk.WriteImage(replaced_image, output_file_path)
+        
 
 
 itkimage_unSeg = sitk.ReadImage("/home/xuesong/CAMP/segment/selfMonaiSegment/data/3D_seg/unsegmented_Volume.mhd")
 extractor = VoxelSeg(itkimage_unSeg)
-extractor.model_load("UNet")
+extractor.model_load("AttentionUNet")
 extractor.process_and_replace_slices()

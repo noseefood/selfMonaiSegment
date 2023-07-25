@@ -71,7 +71,9 @@ class NetworkInference():
             img = img.to(self.device) # torch.Size([1, 512, 512])   HWC to CHW：img_trans = img_nd.transpose((2, 0, 1))
             img = img.unsqueeze(0) # torch.Size([1, 1, 512, 512]) unsqueeze扩增维度
             
+            # # 因为这里没有使用dataloader读取，所以不需要转置，输出可以直接与原图对比
             # img = img.transpose(-1,-2) # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 注意这里与inference.py不同，这里不需要转置，以为读取图片的方式不一样！
+
             output = self.model(img)
             result = post_trans(output) # torch.Size([1, 1, 512, 512])
 
@@ -134,6 +136,6 @@ class BasicUSPlayer():
         self.VideoCap.release()
 
 if __name__ == "__main__":
-    US_mode = "pork-missaligen" # "water" "pork-missaligen" "pork-3Dsegmentaion"
+    US_mode = "pork-3Dsegmentaion" # "water" "pork-missaligen" "pork-3Dsegmentaion"
     usPlayter = BasicUSPlayer(mode = US_mode)
     usPlayter.start()
