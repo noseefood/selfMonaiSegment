@@ -184,7 +184,7 @@ def main(tempdir):
     for epoch in range(epoch_num):  
         print("-" * 10)
         print(f"epoch {epoch + 1}/{10}")
-        model.train()
+        model.train()  # because in validation model.eval() is being used, here we need to switch back to training mode!!!!
         epoch_loss = 0
         step = 0
         for batch_data in train_loader:

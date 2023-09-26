@@ -23,24 +23,11 @@ from monai.transforms import (
 )
 from monai.networks.nets import UNet, AttentionUnet
 
-train_imtrans = Compose( # 输入模型的图片的预处理
-    [   
-        AddChannel(),  # 增加通道维度
-        Resize((512, 512)), # 必须要加入这个，否则会报错，这里相当于直接拉伸，跟training保持一致
-        ScaleIntensity(), # 其实就是归一化
-    ]
-)
-post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
-tf = Compose( # 恢复到原来的大小
-[   
-    # Transpose((1, 2, 0)),
-    Resize((657, 671)),
-]
-)
+
 
 
 class NetworkInference():
-    def __init__(self, mode = "water"):
+    def __init__(self, mode = "pork"):
         monai.config.print_config()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # self.model = AttentionUnet(
@@ -63,9 +50,19 @@ class NetworkInference():
         self.model.load_state_dict(torch.load("best_metric_model_Unet.pth"))
         self.model.eval()
 
-    def inference(self, img):
+        self.train_imtrans = Compose( # 输入模型的图片的预处理
+            [   
+                AddChannel(),  # 增加通道维度
+                Resize((512, 512)), # 必须要加入这个，否则会报错，这里相当于直接拉伸，跟training保持一致
+                ScaleIntensity(), # 其实就是归一化
+            ]
+        )
+        self.post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
+        self.tf = Compose([Resize((657, 671)),])
+
+    def inference(self, img, resize_tf = None):
         with torch.no_grad():
-            img = train_imtrans(img) # compose会自动返回tensor torch.Size([1, 512, 512])
+            img = self.train_imtrans(img) # compose会自动返回tensor torch.Size([1, 512, 512])
             # print(img)
 
             img = img.to(self.device) # torch.Size([1, 512, 512])   HWC to CHW：img_trans = img_nd.transpose((2, 0, 1))
@@ -75,16 +72,22 @@ class NetworkInference():
             # img = img.transpose(-1,-2) # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 注意这里与inference.py不同，这里不需要转置，以为读取图片的方式不一样！
 
             output = self.model(img)
-            result = post_trans(output) # torch.Size([1, 1, 512, 512])
+            result = self.post_trans(output) # torch.Size([1, 1, 512, 512])
 
             probs = result.squeeze(0) # squeeze压缩维度 torch.Size([1, 512, 512])
-            probs = tf(probs.cpu()) # 重新拉伸到原来的大小
+            
+            if resize_tf is not None:
+                self.tf = Compose([Resize(resize_tf),])
+
+            probs = self.tf(probs.cpu()) # 重新拉伸到原来的大小
+
             full_mask = probs.squeeze().cpu().numpy() # return in cpu  # 
             
             cv2.imshow("full_mask", full_mask)
             cv2.waitKey(0)
 
-    pass
+            return full_mask
+
 
 
 class BasicUSPlayer():
@@ -124,7 +127,7 @@ class BasicUSPlayer():
 
             ###############################
             # 2D filter
-            self.net.inference(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+            output = self.net.inference(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
 
             ###############################
 

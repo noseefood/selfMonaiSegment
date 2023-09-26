@@ -31,6 +31,8 @@ from monai.transforms.transform import (  # noqa: F401
 )
 from monai.networks.nets import UNet, AttentionUnet
 
+from inference_debug import NetworkInference
+
 
 train_imtrans = Compose( # 输入模型的图片的预处理
     [
@@ -47,6 +49,7 @@ post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
 # ]
 # )
 
+
 class VoxelSeg():
 
     def __init__(self, itkimage_unSeg):
@@ -55,6 +58,8 @@ class VoxelSeg():
         self.model = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.voxelImg_unSeg = self.itk2voxel(itkimage_unSeg)
+
+        self.net = NetworkInference("pork")
 
 
     def itk2voxel(self, itkImg):
@@ -112,53 +117,31 @@ class VoxelSeg():
 
                 # 在这里对切片进行修改，您可以添加您的图像处理代码
                 img = sitk.GetArrayFromImage(slice_image)
-                size_1, size_2 = img.shape
-                tf = Compose( # 恢复到原来的大小
-                [   
-                    Resize((size_1, size_2)),
-                    # ScaleIntensity(),
-
-                ]
-                )
 
                 cv2.imshow("img", img)
-                cv2.waitKey(0)    
-                # print(img.shape) # (418, 429)
-
-                img = train_imtrans(img) # compose会自动返回tensor torch.Size([1, 512, 512])
-                # print(img.shape) # torch.Size([1, 512, 512])
-
-                img = img.to(self.device) # torch.Size([1, 512, 512])   HWC to CHW：img_trans = img_nd.transpose((2, 0, 1))
-                img = img.unsqueeze(0) # torch.Size([1, 1, 512, 512]) unsqueeze扩增维度
 
 
 
 
-                # img = img.transpose(-1,-2) # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 注意这里与inference.py不同，这里不需要转置，以为读取图片的方式不一样！
+                size_1, size_2 = img.shape
+                # tf = Compose( # 恢复到原来的大小
+                # [   
+                #     Resize((size_1, size_2)),
+                #     # ScaleIntensity(),
+
+                # ]
+                # )
+                resize_tf = (size_1, size_2)
+
+                output = self.net.inference(img, resize_tf)
+                full_mask = output
+                output_Gan = cv2.normalize(full_mask, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
 
 
 
-
-                output = self.model(img)
-                result = post_trans(output) # torch.Size([1, 1, 512, 512]) # 二值化
-
-                probs = result.squeeze(0) # squeeze压缩维度 torch.Size([1, 512, 512]) 
-                probs = tf(probs.cpu()) # 重新拉伸到原来的大小 注意一旦进行了resize，之前的二值化结果就会变成float32！！，在tf中已经进行了二值化，所以这里不需要了
-                full_mask = probs.squeeze().cpu().numpy() # return in cpu  # 
-
-                full_mask = full_mask > 0
-                full_mask = np.asarray((full_mask * 255).astype(np.uint8)) # 将mask(0,1)转换为0-255的灰度图用于可视化
-
-                # full_mask = np.where(full_mask > 0.5, 1, 0) # 二值化
-                # print(full_mask) # (418, 429)
-
-                cv2.imshow("full_mask", full_mask)
-                cv2.waitKey(0)
-                # print(full_mask.shape) # (418, 429)
-                
-                result_itk = sitk.GetImageFromArray(full_mask)
+                result_itk = sitk.GetImageFromArray(output_Gan)
                 # print(result_itk.GetSize()) # (671, 657)
-                self.voxelImg_unSeg[z,:,:] = full_mask 
+                self.voxelImg_unSeg[z,:,:] = output_Gan 
 
 
         # 保存结果
@@ -170,5 +153,5 @@ class VoxelSeg():
 
 itkimage_unSeg = sitk.ReadImage("/home/xuesong/CAMP/segment/selfMonaiSegment/data/3D_seg/unsegmented_Volume.mhd")
 extractor = VoxelSeg(itkimage_unSeg)
-extractor.model_load("AttentionUNet")
+extractor.model_load("UNet")
 extractor.process_and_replace_slices()
